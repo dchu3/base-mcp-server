@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { BlockscoutClient } from './blockscout.js';
 import type { AppConfig } from './config.js';
 import { DEFAULT_ROUTERS, mergeRouters, type RouterMap, selectRoutersForNetwork } from './routers.js';
+import { SERVER_PROMPT } from './prompt.js';
 import { tools } from './tools/index.js';
 
 export interface ServerOptions {
@@ -62,8 +63,7 @@ export const createServer = async ({ config, client, routers }: ServerOptions): 
       version: '0.1.0'
     },
     {
-      instructions:
-        'Tools provide access to Base Blockscout data. See structuredContent for raw JSON responses.'
+      instructions: SERVER_PROMPT
     }
   );
 
