@@ -43,3 +43,6 @@ base-mcp-server health
 The server surfaces tools such as `getAccountSummary`, `getTransactions`,
 `getContractABI`, `getLogs`, and `getDexRouterActivity`, returning small structured
 payloads validated with zod.
+
+Agent connection instructions live in `src/prompt.ts`; update this file when you need to
+adjust the guidance delivered to MCP clients.
