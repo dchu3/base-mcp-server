@@ -122,6 +122,14 @@ export class BlockscoutClient {
     return this.request(path, jsonObjectSchema, { query, cache: false });
   }
 
+  public async getTokenTransfers(
+    address: string,
+    query?: Record<string, unknown>
+  ): Promise<z.infer<typeof jsonObjectSchema>> {
+    const path = `/v2/tokens/${checksumAddress(address)}/transfers`;
+    return this.request(path, jsonObjectSchema, { query, cache: false });
+  }
+
   public async getTransaction(hash: string): Promise<JsonObject> {
     const path = `/v2/transactions/${hash}`;
     return this.request(path, jsonObjectSchema, { cache: false });
