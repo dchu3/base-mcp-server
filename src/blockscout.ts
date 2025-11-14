@@ -140,6 +140,11 @@ export class BlockscoutClient {
     return this.request(path, jsonObjectSchema);
   }
 
+  public async getTransactionLogs(hash: string): Promise<JsonObject> {
+    const path = `/v2/transactions/${hash}/logs`;
+    return this.request(path, jsonObjectSchema, { cache: false });
+  }
+
   public async getLogs(query: Record<string, unknown>): Promise<JsonObject> {
     return this.request('/v2/logs', jsonObjectSchema, { query, cache: false });
   }
