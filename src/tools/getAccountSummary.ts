@@ -55,11 +55,16 @@ const parseNonce = (value: unknown): number | null => {
 };
 
 const extractTokens = (raw: unknown): AccountSummaryOutput['tokenBalances'] => {
-  if (!raw || typeof raw !== 'object') {
+  if (!raw) {
     return [];
   }
-  const container = raw as Record<string, unknown>;
-  const items = (container.items ?? container.result ?? container.data ?? []) as unknown[];
+
+  const items = Array.isArray(raw)
+    ? raw
+    : ((raw as Record<string, unknown>).items ??
+        (raw as Record<string, unknown>).result ??
+        (raw as Record<string, unknown>).data ??
+        []) as unknown[];
 
   return items
     .map((item) => {
@@ -107,9 +112,10 @@ export const getAccountSummaryTool: ToolDefinition<typeof inputSchema, typeof ou
   input: inputSchema,
   output: outputSchema,
   execute: async ({ address }, { client }) => {
-    const [accountRaw, tokensRaw] = await Promise.all([
+    const [accountRaw, tokensRaw, countersRaw] = await Promise.all([
       client.getAddress(address),
-      client.getAddressTokenBalances(address, { filter: 'token', page_size: 25 })
+      client.getAddressTokenBalances(address),
+      client.getAddressCounters(address)
     ]);
 
     const normalizedAddress =
@@ -124,6 +130,10 @@ export const getAccountSummaryTool: ToolDefinition<typeof inputSchema, typeof ou
       '0';
 
     const transactionCount =
+      parseTransactionCount(
+        (countersRaw.transactions_count as string | number | undefined) ??
+          (countersRaw.tx_count as string | number | undefined)
+      ) ??
       parseTransactionCount(accountRaw.tx_count) ??
       parseTransactionCount(accountRaw.transaction_count) ??
       parseTransactionCount(accountRaw.transactions_count);

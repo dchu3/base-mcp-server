@@ -8,6 +8,7 @@ import { consumeRateLimit, type RateLimiter } from './rate.js';
 import { checksumAddress } from './utils.js';
 
 const jsonObjectSchema = z.object({}).passthrough();
+const jsonArraySchema = z.array(z.unknown());
 type JsonObject = z.infer<typeof jsonObjectSchema>;
 
 interface RequestOptions {
@@ -56,7 +57,7 @@ export class BlockscoutClient {
     if (options.cache !== false) {
       const cached = this.cache.get(cacheKey);
       if (cached) {
-        return schema.parse(cached) as T;
+        return schema.parse(cached);
       }
     }
 
@@ -76,7 +77,7 @@ export class BlockscoutClient {
         throw new Error(`Blockscout request failed (${response.status}): ${text}`);
       }
 
-      const payload = (await response.json()) as unknown;
+      const payload: unknown = await response.json();
       return schema.parse(payload);
     };
 
@@ -100,10 +101,15 @@ export class BlockscoutClient {
 
   public async getAddressTokenBalances(
     address: string,
-    query: Record<string, unknown>
-  ): Promise<z.infer<typeof jsonObjectSchema>> {
+    query?: Record<string, unknown>
+  ): Promise<z.infer<typeof jsonObjectSchema> | z.infer<typeof jsonArraySchema>> {
     const path = `/v2/addresses/${checksumAddress(address)}/token-balances`;
-    return this.request(path, jsonObjectSchema, { query });
+    return this.request(path, z.union([jsonObjectSchema, jsonArraySchema]), { query });
+  }
+
+  public async getAddressCounters(address: string): Promise<JsonObject> {
+    const path = `/v2/addresses/${checksumAddress(address)}/counters`;
+    return this.request(path, jsonObjectSchema);
   }
 
   public async getAddressTransactions(

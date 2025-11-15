@@ -9,6 +9,7 @@ import { createRateLimiter } from './rate.js';
 import { createRouterPrinter, createServer } from './server.js';
 import {
   DEFAULT_ROUTERS,
+  type RouterMap,
   loadRouterOverrides,
   mergeRouters,
   saveRouterOverrides,
@@ -16,11 +17,27 @@ import {
   validateRouterConfig
 } from './routers.js';
 
+type NetworkName = 'base-mainnet' | 'base-sepolia';
+type RouterAction = 'print' | 'get' | 'set';
+
+const isNetworkName = (value: unknown): value is NetworkName =>
+  value === 'base-mainnet' || value === 'base-sepolia';
+
+const parseNetworkArg = (value: unknown): NetworkName | undefined =>
+  typeof value === 'string' && isNetworkName(value) ? value : undefined;
+
+const assertRouterAction = (value: unknown): RouterAction => {
+  if (value === 'print' || value === 'get' || value === 'set') {
+    return value;
+  }
+  throw new Error('Unsupported router action');
+};
+
 const applyOverrides = (
   config: AppConfig,
   overrides: {
     port?: number;
-    network?: 'base-mainnet' | 'base-sepolia';
+    network?: NetworkName;
     logLevel?: AppConfig['logLevel'];
   }
 ): AppConfig => ({
@@ -75,7 +92,13 @@ const startHealthServer = (port: number, network: string): http.Server => {
   return server;
 };
 
-const loadRouters = async (config: AppConfig) => {
+const loadRouters = async (
+  config: AppConfig
+): Promise<{
+  overrides?: RouterMap;
+  merged: RouterMap;
+  resolved: Record<string, string>;
+}> => {
   const overrides = config.routerConfigPath
     ? await loadRouterOverrides(config.routerConfigPath)
     : undefined;
@@ -89,12 +112,12 @@ const loadRouters = async (config: AppConfig) => {
 
 const startCommand = async (argv: {
   port?: number;
-  network?: 'base-mainnet' | 'base-sepolia';
+  network?: NetworkName;
   logLevel?: AppConfig['logLevel'];
-}) => {
+}): Promise<void> => {
   const baseConfig = loadConfig();
   const config = applyOverrides(baseConfig, argv);
-  const { overrides, merged } = await loadRouters(config);
+  const { merged } = await loadRouters(config);
 
   const rateLimiter = createRateLimiter({
     points: config.ratePoints,
@@ -102,7 +125,7 @@ const startCommand = async (argv: {
   });
 
   const client = new BlockscoutClient(config, rateLimiter);
-  const server = await createServer({ config, client, routers: merged });
+  const server = createServer({ config, client, routers: merged });
 
   const health = startHealthServer(config.port, config.baseNetwork);
 
@@ -117,7 +140,7 @@ const startCommand = async (argv: {
   }
 };
 
-const healthCommand = async () => {
+const healthCommand = async (): Promise<void> => {
   const config = loadConfig();
   const rateLimiter = createRateLimiter({
     points: config.ratePoints,
@@ -137,11 +160,11 @@ const healthCommand = async () => {
 };
 
 const routersCommand = async (argv: {
-  action: 'print' | 'get' | 'set';
+  action: RouterAction;
   name?: string;
-  network?: 'base-mainnet' | 'base-sepolia';
+  network?: NetworkName;
   address?: string;
-}) => {
+}): Promise<void> => {
   const config = loadConfig();
   const { overrides, merged, resolved } = await loadRouters(config);
 
@@ -176,7 +199,7 @@ const routersCommand = async (argv: {
   }
 
   const currentOverrides = overrides ?? {};
-  const currentBase = merged[argv.name] ?? {
+  const currentBase: RouterMap[string] = merged[argv.name] ?? {
     mainnet: argv.address,
     sepolia: argv.address
   };
@@ -220,7 +243,7 @@ void yargs(hideBin(process.argv))
     (args) => {
       void startCommand({
         port: args.port,
-        network: args.network as 'base-mainnet' | 'base-sepolia' | undefined,
+        network: parseNetworkArg(args.network),
         logLevel: toLogLevel(args.logLevel)
       });
     }
@@ -252,9 +275,9 @@ void yargs(hideBin(process.argv))
         }),
     (args) => {
       void routersCommand({
-        action: args.action as 'print' | 'get' | 'set',
+        action: assertRouterAction(args.action),
         name: args.name,
-        network: args.network as 'base-mainnet' | 'base-sepolia' | undefined,
+        network: parseNetworkArg(args.network),
         address: args.address
       });
     }
