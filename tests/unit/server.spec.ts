@@ -32,7 +32,7 @@ vi.mock('../../src/tools/index.js', () => {
     description: 'Mock tool',
     input: z.object({}),
     output: z.object({}),
-    execute: async () => ({ ok: true })
+    execute: () => Promise.resolve({ ok: true })
   };
   return { tools: [tool] };
 });
@@ -44,7 +44,7 @@ describe('createServer', () => {
     constructorMock.mockClear();
   });
 
-  it('passes the server prompt to the MCP metadata', async () => {
+  it('passes the server prompt to the MCP metadata', () => {
     const config = {
       nodeEnv: 'test',
       port: 1234,
@@ -64,7 +64,7 @@ describe('createServer', () => {
       blockscoutBaseUrl: 'https://example.com'
     };
 
-    await createServer({
+    createServer({
       config,
       client: {} as never,
       routers: {}
@@ -75,9 +75,9 @@ describe('createServer', () => {
         name: 'base-mcp-server',
         version: '0.1.0'
       },
-      {
-        instructions: SERVER_PROMPT
-      }
+      expect.objectContaining({
+        instructions: `${SERVER_PROMPT}\n\nNetwork: ${config.baseNetwork}`
+      })
     );
   });
 });

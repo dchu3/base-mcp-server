@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import type { ZodTypeAny } from 'zod';
 
 import type { BlockscoutClient } from '../blockscout.js';
 import type { RouterMap } from '../routers.js';
@@ -8,10 +8,12 @@ export interface ToolContext {
   routers: RouterMap;
 }
 
-export interface ToolDefinition<TInput extends z.ZodTypeAny, TResult extends z.ZodTypeAny> {
+type Infer<TSchema extends ZodTypeAny> = TSchema['_type'];
+
+export interface ToolDefinition<TInput extends ZodTypeAny, TResult extends ZodTypeAny> {
   name: string;
   description: string;
   input: TInput;
   output: TResult;
-  execute: (args: z.infer<TInput>, context: ToolContext) => Promise<z.infer<TResult>>;
+  execute: (args: Infer<TInput>, context: ToolContext) => Promise<Infer<TResult>>;
 }

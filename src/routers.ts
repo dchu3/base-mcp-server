@@ -28,7 +28,7 @@ export const DEFAULT_ROUTERS: RouterMap = {
 export const selectRoutersForNetwork = (
   routers: RouterMap,
   network: 'base-mainnet' | 'base-sepolia'
-) =>
+): Record<string, string> =>
   Object.entries(routers).reduce<Record<string, string>>((acc, [name, addresses]) => {
     acc[name] = network === 'base-sepolia' ? addresses.sepolia : addresses.mainnet;
     return acc;
