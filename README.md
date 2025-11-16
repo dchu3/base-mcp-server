@@ -44,5 +44,19 @@ The server surfaces tools such as `getAccountSummary`, `getTransactions`,
 `getContractABI`, `getLogs`, and `getDexRouterActivity`, returning small structured
 payloads validated with zod.
 
+### `getTransactions` Tool
+
+- Hits the Blockscout endpoint `GET /v2/addresses/{address}/transactions`, so an address
+  is always required.
+- Filters by direction using Blockscout’s `filter=from|to` derived from the MCP-level
+  `direction` parameter, matching the curl example (`filter=to`) when you pass
+  `direction: 'in'`.
+- Normalizes each transaction record (hash/source/destination/timestamp/status) so the
+  response shape is consistent even when Blockscout renames fields (`hash` vs
+  `tx_hash`, `method` vs `call_type`, etc.).
+- Surfaces Blockscout’s keyset pagination under a `nextCursor` object. To fetch the next
+  batch of results, pass that `nextCursor` back as the `cursor` input (the tool merges the
+  opaque keyset params with your latest direction filter).
+
 Agent connection instructions live in `src/prompt.ts`; update this file when you need to
 adjust the guidance delivered to MCP clients.

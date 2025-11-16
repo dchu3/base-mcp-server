@@ -2,11 +2,13 @@ import { z } from 'zod';
 
 import type { ToolDefinition } from './types.js';
 
+const cursorValueSchema = z.union([z.string(), z.number(), z.boolean()]);
+const cursorSchema = z.record(cursorValueSchema);
+
 const inputSchema = z.object({
   address: z.string().min(1, 'Address is required'),
-  page: z.number().int().positive().optional(),
-  pageSize: z.number().int().positive().max(100).optional(),
-  direction: z.enum(['in', 'out', 'all']).optional()
+  direction: z.enum(['in', 'out', 'all']).optional(),
+  cursor: cursorSchema.optional()
 });
 
 const transactionSchema = z.object({
@@ -21,13 +23,13 @@ const transactionSchema = z.object({
 
 const outputSchema = z.object({
   address: z.string(),
-  page: z.number(),
-  pageSize: z.number(),
-  nextPage: z.number().nullable(),
+  cursor: cursorSchema.nullable(),
+  nextCursor: cursorSchema.nullable(),
   items: z.array(transactionSchema)
 });
 
 type TransactionRecord = z.infer<typeof transactionSchema>;
+type CursorRecord = z.infer<typeof cursorSchema>;
 
 const normalizeStatus = (value: unknown): TransactionRecord['status'] => {
   if (typeof value !== 'string') {
@@ -57,22 +59,41 @@ const parseTimestamp = (value: unknown): number | undefined => {
   return undefined;
 };
 
+const parseCursor = (value: unknown): CursorRecord | null => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const entries = Object.entries(value).reduce<Record<string, z.infer<typeof cursorValueSchema>>>(
+    (acc, [key, raw]) => {
+      if (
+        typeof raw === 'string' ||
+        typeof raw === 'number' ||
+        typeof raw === 'boolean'
+      ) {
+        acc[key] = raw;
+      }
+      return acc;
+    },
+    {}
+  );
+
+  return Object.keys(entries).length > 0 ? entries : null;
+};
+
 export const getTransactionsTool: ToolDefinition<typeof inputSchema, typeof outputSchema> = {
   name: 'getTransactions',
   description: 'List recent transactions for an address with pagination.',
   input: inputSchema,
   output: outputSchema,
-  execute: async ({ address, page, pageSize, direction }, { client }) => {
-    const resolvedPage = page ?? 1;
-    const resolvedPageSize = pageSize ?? 20;
-    const filter =
-      direction === 'in' ? 'incoming' : direction === 'out' ? 'outgoing' : direction === 'all' ? 'all' : undefined;
+  execute: async ({ address, direction, cursor }, { client }) => {
+    const filter = direction === 'in' ? 'to' : direction === 'out' ? 'from' : undefined;
+    const query: Record<string, unknown> = cursor ? { ...cursor } : {};
+    if (filter && query.filter === undefined) {
+      query.filter = filter;
+    }
 
-    const response = await client.getAddressTransactions(address, {
-      page: resolvedPage,
-      page_size: resolvedPageSize,
-      filter
-    });
+    const response = await client.getAddressTransactions(address, query);
 
     const items = ((response.items ?? response.result ?? []) as unknown[]).map((item) => {
       if (!item || typeof item !== 'object') {
@@ -99,19 +120,15 @@ export const getTransactionsTool: ToolDefinition<typeof inputSchema, typeof outp
 
     const filteredItems = items.filter((tx): tx is TransactionRecord => tx !== null);
 
-    const nextPageRaw = response.next_page ?? response.nextPage ?? null;
-    const nextPage =
-      typeof nextPageRaw === 'number'
-        ? nextPageRaw
-        : typeof nextPageRaw === 'string'
-          ? Number(nextPageRaw)
-          : null;
+    const nextCursor =
+      parseCursor(response.next_page_params) ??
+      parseCursor(typeof response.next_page === 'object' ? response.next_page : null) ??
+      parseCursor(typeof response.nextPage === 'object' ? response.nextPage : null);
 
     return outputSchema.parse({
       address,
-      page: resolvedPage,
-      pageSize: resolvedPageSize,
-      nextPage: Number.isFinite(nextPage) ? Number(nextPage) : null,
+      cursor: cursor ?? null,
+      nextCursor,
       items: filteredItems
     });
   }
