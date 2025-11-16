@@ -58,5 +58,24 @@ payloads validated with zod.
   batch of results, pass that `nextCursor` back as the `cursor` input (the tool merges the
   opaque keyset params with your latest direction filter).
 
+### `getContractABI` Tool
+
+- Calls `GET /v2/smart-contracts/{address}` to fetch the verified ABI plus compiler metadata.
+- Parses ABI payloads whether Blockscout returns a JSON string (`abi`, `result`, or `abi_json`)
+  or a pre-parsed array, so agents always receive a normalized ABI array when available.
+- Surfaces compiler version, EVM version, and verification timestamp fields under a single
+  `metadata` object (`verified` falls back to `true` if the endpoint returns an ABI even when
+  explicit flags are missing).
+
+### `getTransactionByHash` Tool
+
+- Wraps `GET /v2/transactions/{hash}` to return a normalized view of a single transaction,
+  including decoded method data when Blockscout has verified the contract ABI.
+- Normalizes values from both string and object fields (addresses, fees, nested `from`/`to`
+  objects) so callers always receive plain strings for hash, `from`, `to`, and raw input.
+- Surfaces the extended Blockscout telemetry—gas/fee metrics, layer-1 usage, nonce,
+  confirmations, position, transaction types, and pending status—alongside the original
+  success/fail/pending status flag.
+
 Agent connection instructions live in `src/prompt.ts`; update this file when you need to
 adjust the guidance delivered to MCP clients.
