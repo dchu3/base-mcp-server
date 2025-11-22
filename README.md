@@ -15,6 +15,18 @@ npm run dev
 Set `BASE_NETWORK` to `base-mainnet` or `base-sepolia` in `.env`. Override Blockscout
 endpoints or router config through environment variables when needed.
 
+## Configuration
+
+Key environment variables (see `.env.example` for defaults):
+
+- `BASE_NETWORK`: `base-mainnet` or `base-sepolia` (selects the Blockscout base URL).
+- `BLOCKSCOUT_MAINNET` / `BLOCKSCOUT_SEPOLIA`: explorer API URLs (override if self-hosted).
+- `BLOCKSCOUT_API_KEY`: optional Blockscout API key.
+- `PORT`: health endpoint port (`/healthz`).
+- `LOG_LEVEL`: `fatal|error|warn|info|debug|trace|silent`.
+- Cache / rate / retry knobs: `CACHE_TTL_MS`, `CACHE_MAX`, `RATE_POINTS`, `RATE_DURATION_S`, `RETRY_ATTEMPTS`, `RETRY_MIN_MS`, `RETRY_MAX_MS`.
+- `ROUTERS_CONFIG_PATH`: JSON file for router overrides (used by `routers set`).
+
 ## Key Commands
 
 - `npm run dev` – start the MCP server in watch mode (stdio transport).
@@ -28,10 +40,13 @@ endpoints or router config through environment variables when needed.
 
 ```bash
 # Start the MCP server (reads .env)
-base-mcp-server start --network base-mainnet
+base-mcp-server start --network base-mainnet --port 7801 --log-level info
 
 # Print known router addresses for the active network
 base-mcp-server routers print
+
+# Get a single router address for the active network
+base-mcp-server routers get --name uniswap_v3
 
 # Update a router override (requires ROUTERS_CONFIG_PATH)
 base-mcp-server routers set --name uniswap_v3 --network base-mainnet --address 0x...
@@ -40,9 +55,16 @@ base-mcp-server routers set --name uniswap_v3 --network base-mainnet --address 0
 base-mcp-server health
 ```
 
+`start` also launches an HTTP health check at `/healthz` on the configured `PORT`.
+
 The server surfaces tools such as `getAccountSummary`, `getTransactions`,
 `getContractABI`, `getLogs`, and `getDexRouterActivity`, returning small structured
 payloads validated with zod.
+
+### `search` Tool
+
+- Wraps Blockscout `GET /v2/search` and returns the first 10 matches.
+- Normalizes fields across addresses, tokens, and transactions (`type`, `name`, `hash`, `address`, `label`, `match`).
 
 ### `getTransactions` Tool
 
@@ -126,3 +148,8 @@ payloads validated with zod.
 
 Agent connection instructions live in `src/prompt.ts`; update this file when you need to
 adjust the guidance delivered to MCP clients.
+
+### Request behavior
+
+- The Blockscout client applies rate limiting (`RATE_POINTS` per `RATE_DURATION_S`) and `p-retry` backoff based on `RETRY_*` settings.
+- Responses are cached in-memory (LRU) for `CACHE_TTL_MS` unless a tool sets `cache: false` for dynamic endpoints (transactions, transfers, logs).
